@@ -1,8 +1,11 @@
+import os
 from dataclasses import dataclass
 
 from minsearch import Index
 from pydantic_ai import Agent, RunContext
 
+# Configure OpenRouter API key for pydantic-ai
+os.environ["OPENROUTER_API_KEY"] = os.getenv("OPENROUTER_API_KEY", "")
 
 # --------------------------------------------------------------------------- #
 # Instructions
@@ -34,6 +37,7 @@ At the end, ask if there are other areas that the user wants to explore.
 # Dependencies
 # --------------------------------------------------------------------------- #
 
+
 # Pydantic AI uses a dependency container: the objects the agent's tools need
 # at runtime. Here the only dependency is the minsearch index. When we run the
 # agent we pass deps=SearchDeps(index=...), and tools access it via ctx.deps.
@@ -63,7 +67,7 @@ class SearchDeps:
 #   - tools are registered with @faq_agent.tool (no manual JSON schema)
 #   - the loop is built into run_sync() — we call it and get the answer back
 faq_agent = Agent(
-    'openai:gpt-5.4-mini',
+    "openrouter:poolside/laguna-xs-2.1:free",
     deps_type=SearchDeps,
     instructions=INSTRUCTIONS,
 )
@@ -72,6 +76,7 @@ faq_agent = Agent(
 # --------------------------------------------------------------------------- #
 # The search tool
 # --------------------------------------------------------------------------- #
+
 
 # In Module 1 we defined the tool in two places: a `search()` function that did
 # the work, and a `search_tool` dict with a hand-written JSON schema describing
@@ -91,15 +96,12 @@ faq_agent = Agent(
 @faq_agent.tool
 def search(ctx: RunContext[SearchDeps], query: str) -> str:
     """Search the FAQ database for entries matching the given query."""
-    boost_dict = {'question': 3.0, 'section': 0.5}
-    filter_dict = {'course': 'llm-zoomcamp'}
+    boost_dict = {"question": 3.0, "section": 0.5}
+    filter_dict = {"course": "llm-zoomcamp"}
 
     # ctx.deps.index is the minsearch index we injected via SearchDeps
     results = ctx.deps.index.search(
-        query,
-        num_results=5,
-        boost_dict=boost_dict,
-        filter_dict=filter_dict
+        query, num_results=5, boost_dict=boost_dict, filter_dict=filter_dict
     )
 
     return results
