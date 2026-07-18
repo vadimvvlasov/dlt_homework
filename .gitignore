@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# dlt pipeline local state/data (DuckDB files, pipeline working dirs)
+.dlt/data/
+.dlt/state/
+*.duckdb
