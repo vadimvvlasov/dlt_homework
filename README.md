@@ -87,15 +87,21 @@ Done. Pipeline pulled Logfire records (spans/traces) via Query API into DuckDB s
 
 ### Question 3 — Input token usage
 
-> What is the range of total input token usage for the agent run from Q1?
+> Sum `gen_ai.usage.input_tokens` across all LLM calls within the trace from Q1 (last run). Which range does it fall into?
+> 100-500 / 1500-5000 / 10000-20000 / 50000-100000
+
+Script: [q3_input_tokens.py](q3_input_tokens.py)
+
+```bash
+uv run python q3_input_tokens.py
+```
 
 ```sql
-SELECT MIN(attributes__gen_ai_usage_input_tokens), MAX(attributes__gen_ai_usage_input_tokens)
+SELECT SUM(attributes__gen_ai_usage_input_tokens)
 FROM agent_traces.records
 WHERE trace_id = (
-    -- the Q1 trace: the one with 5 spans
-    SELECT trace_id FROM agent_traces.records GROUP BY trace_id HAVING COUNT(*) = 5
+    SELECT trace_id FROM agent_traces.records GROUP BY trace_id ORDER BY MAX(start_timestamp) DESC LIMIT 1
 );
 ```
 
-**Answer: 552 – 3183 input tokens** (2 LLM calls in the trace; total input tokens: 3735)
+**Answer: 3735 total input tokens → falls in the 1500 - 5000 range** (2 LLM calls in the trace)
