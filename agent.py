@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Literal
 
 from minsearch import Index
 from pydantic_ai import Agent, RunContext
@@ -66,11 +67,65 @@ class SearchDeps:
 #   - instructions go directly to the Agent constructor
 #   - tools are registered with @faq_agent.tool (no manual JSON schema)
 #   - the loop is built into run_sync() — we call it and get the answer back
-faq_agent = Agent(
-    "openrouter:poolside/laguna-xs-2.1:free",
-    deps_type=SearchDeps,
-    instructions=INSTRUCTIONS,
-)
+
+
+def create_faq_agent(
+    model: Literal["openrouter", "ollama"] = "ollama",
+) -> Agent[SearchDeps, str]:
+    """Create FAQ agent with specified model provider.
+
+    Factory function following Single Responsibility Principle:
+    only handles agent creation with different model configurations.
+    """
+    model_name = {
+        "openrouter": "openrouter:poolside/laguna-xs-2.1:free",
+        "ollama": "openai:minimax-m3:cloud",  # Ollama через OpenAI-совместимый API
+    }[model]
+
+    agent = Agent(
+        model_name,
+        deps_type=SearchDeps,
+        instructions=INSTRUCTIONS,
+    )
+
+    # Register the search tool
+    @agent.tool
+    def search(ctx: RunContext[SearchDeps], query: str) -> str:
+        """Search the FAQ database for entries matching the given query."""
+        boost_dict = {"question": 3.0, "section": 0.5}
+        filter_dict = {"course": "llm-zoomcamp"}
+
+        results = ctx.deps.index.search(
+            query, num_results=5, boost_dict=boost_dict, filter_dict=filter_dict
+        )
+
+        return results
+
+    return agent
+
+
+# Default agent instance (OpenRouter)
+faq_agent = create_faq_agent("openrouter")
+
+# Ollama agent instance - created lazily when OLLAMA_BASE_URL is set
+_faq_agent_ollama: Agent[SearchDeps, str] | None = None
+
+
+def get_ollama_agent() -> Agent[SearchDeps, str]:
+    """Get or create Ollama agent instance.
+
+    Requires OLLAMA_BASE_URL environment variable to be set.
+    Example: OLLAMA_BASE_URL=http://localhost:11434
+    """
+    global _faq_agent_ollama
+    if _faq_agent_ollama is None:
+        if not os.getenv("OLLAMA_BASE_URL"):
+            raise ValueError(
+                "OLLAMA_BASE_URL environment variable is required. "
+                "Set it to your Ollama server URL, e.g., http://localhost:11434"
+            )
+        _faq_agent_ollama = create_faq_agent("ollama")
+    return _faq_agent_ollama
 
 
 # --------------------------------------------------------------------------- #
@@ -93,15 +148,6 @@ faq_agent = Agent(
 # The first parameter is always ctx (the run context), which gives access to
 # the dependencies via ctx.deps. The rest are the tool's arguments, which the
 # model fills in.
-@faq_agent.tool
-def search(ctx: RunContext[SearchDeps], query: str) -> str:
-    """Search the FAQ database for entries matching the given query."""
-    boost_dict = {"question": 3.0, "section": 0.5}
-    filter_dict = {"course": "llm-zoomcamp"}
-
-    # ctx.deps.index is the minsearch index we injected via SearchDeps
-    results = ctx.deps.index.search(
-        query, num_results=5, boost_dict=boost_dict, filter_dict=filter_dict
-    )
-
-    return results
+#
+# NOTE: The search tool is now registered inside create_faq_agent() function
+# to support multiple agent instances with different models.
