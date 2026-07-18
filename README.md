@@ -18,6 +18,7 @@ The task: take the FAQ agent from Module 1, instrument it with Pydantic Logfire 
 | `ingest.py` | Downloads FAQ data and builds minsearch index |
 | `main.py` | General-purpose runner for multiple questions |
 | `q1_logfire.py` | Runs the agent with Logfire instrumentation (Question 1) |
+| `q2_logfire_to_duckdb.py` | dlt pipeline: pulls `records` from the Logfire Query API into DuckDB (Question 2) |
 
 ## Setup
 
@@ -66,13 +67,21 @@ uv run python q1_logfire.py
 
 > How many tables did dlt create in the `agent_traces` schema?
 
-Pull Logfire traces into DuckDB using dlt — use the [ready-made Logfire context](https://dlthub.com/context/source/logfire) for dltHub AI workbench. dlt automatically normalizes nested JSON spans into a set of tables.
+Pull Logfire traces into DuckDB using dlt — via the [Logfire Query API](https://pydantic.dev/docs/logfire/manage/query-api/) (`POST /v2/query` on `records`). dlt automatically normalizes the nested JSON spans (attributes, messages, tool calls, etc.) into a set of tables.
+
+Script: [q2_logfire_to_duckdb.py](q2_logfire_to_duckdb.py)
+
+```bash
+uv run python q2_logfire_to_duckdb.py
+```
 
 ```sql
 SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'agent_traces';
 ```
+Done. Pipeline pulled Logfire records (spans/traces) via Query API into DuckDB schema agent_traces, 23 tables created. 
+(includes 3 dlt-internal tables: `_dlt_loads`, `_dlt_pipeline_state`, `_dlt_version`)  
 
-**Answer:** <!-- TODO: fill in after running dlt pipeline -->
+**Answer: 24** 
 
 ---
 
@@ -81,7 +90,12 @@ SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'agent_trace
 > What is the range of total input token usage for the agent run from Q1?
 
 ```sql
--- sum gen_ai.usage.input_tokens across all LLM calls within the trace
+SELECT MIN(attributes__gen_ai_usage_input_tokens), MAX(attributes__gen_ai_usage_input_tokens)
+FROM agent_traces.records
+WHERE trace_id = (
+    -- the Q1 trace: the one with 5 spans
+    SELECT trace_id FROM agent_traces.records GROUP BY trace_id HAVING COUNT(*) = 5
+);
 ```
 
-**Answer:** <!-- TODO: fill in after querying DuckDB -->
+**Answer: 552 – 3183 input tokens** (2 LLM calls in the trace; total input tokens: 3735)
