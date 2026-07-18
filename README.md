@@ -59,7 +59,7 @@ uv run python q1_logfire.py
 
 **Answer: 5**
 
-(q1.png)
+![Logfire traces for Q1](q1.png)
 ---
 
 ### Question 2 — Tables in DuckDB
