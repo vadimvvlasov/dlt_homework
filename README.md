@@ -66,6 +66,8 @@ uv run python q1_logfire.py
 
 > How many tables did dlt create in the `agent_traces` schema?
 
+Pull Logfire traces into DuckDB using dlt — use the [ready-made Logfire context](https://dlthub.com/context/source/logfire) for dltHub AI workbench. dlt automatically normalizes nested JSON spans into a set of tables.
+
 ```sql
 SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'agent_traces';
 ```
